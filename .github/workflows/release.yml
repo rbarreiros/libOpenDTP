@@ -1,0 +1,62 @@
+name: Release Packaging
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up CMake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.28.x'
+
+    - name: Install Doxygen & Graphviz (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y doxygen graphviz
+
+    - name: Install Doxygen & Graphviz (macOS)
+      if: matrix.os == 'macos-latest'
+      run: brew install doxygen graphviz
+
+    - name: Configure CMake
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Build Documentation
+      run: cmake --build build --config Release --target doc
+
+    - name: Run CPack
+      run: cpack --config build/CPackConfig.cmake -C Release
+
+    - name: Publish Release Assets
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          *.deb
+          *.tar.gz
+          *.zip
+          *.pkg
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

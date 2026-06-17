@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up CMake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.28.x'
+
+    - name: Install Doxygen & Graphviz (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y doxygen graphviz
+
+    - name: Configure CMake (Linux with Coverage)
+      if: matrix.os == 'ubuntu-latest'
+      run: cmake -B build -S . -DENABLE_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
+
+    - name: Configure CMake (macOS)
+      if: matrix.os == 'macos-latest'
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+
+    - name: Build
+      run: cmake --build build --config Debug
+
+    - name: Run Tests
+      run: ctest --test-dir build --output-on-failure -C Debug
+
+    - name: Build Documentation (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: cmake --build build --target doc
+
+    - name: Upload Coverage to Codecov (Linux)
+      if: matrix.os == 'ubuntu-latest' && success()
+      uses: codecov/codecov-action@v4
+      with:
+        fail_ci_if_error: false
+        verbose: true
