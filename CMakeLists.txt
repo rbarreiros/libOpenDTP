@@ -41,6 +41,7 @@ FetchContent_MakeAvailable(asio)
 
 # Fetch GoogleTest (if testing enabled)
 if(BUILD_TESTING)
+    enable_testing()
     message(STATUS "Fetching GoogleTest...")
     FetchContent_Declare(
         googletest
@@ -78,6 +79,13 @@ target_compile_definitions(opendtp
     PUBLIC
         ASIO_STANDALONE
 )
+
+if(WIN32)
+    target_compile_definitions(opendtp
+        PUBLIC
+            _WIN32_WINNT=0x0A00
+    )
+endif()
 
 # Add subdirectories for tests and examples
 if(BUILD_TESTING)

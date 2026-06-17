@@ -22,6 +22,9 @@
 #include "Sha256.hpp"
 
 #include <asio.hpp>
+#ifdef _WIN32
+#include <mstcpip.h>
+#endif
 #include <iostream>
 #include <chrono>
 
@@ -119,6 +122,28 @@ ClientError Client::Connect(const std::string& host, uint16_t port, const std::s
                     lastError_ = ClientError::SOCKET_IO;
                     if (onError) {
                         onError(ClientError::SOCKET_IO, "Failed to open socket: " + openEc.message());
+                    }
+                    Disconnect();
+                    connectionCv_.notify_all();
+                    return;
+                }
+
+#ifdef _WIN32
+                // Disable WSAECONNRESET (10054) on Windows for UDP sockets when receiving ICMP Port Unreachable
+                BOOL bNewBehavior = FALSE;
+                DWORD dwBytesReturned = 0;
+                ::WSAIoctl(socket_.native_handle(), SIO_UDP_CONNRESET,
+                           &bNewBehavior, sizeof(bNewBehavior),
+                           NULL, 0, &dwBytesReturned,
+                           NULL, NULL);
+#endif
+
+                std::error_code bindEc;
+                socket_.bind(asio::ip::udp::endpoint(serverEndpoint_.protocol(), 0), bindEc);
+                if (bindEc) {
+                    lastError_ = ClientError::SOCKET_IO;
+                    if (onError) {
+                        onError(ClientError::SOCKET_IO, "Failed to bind socket: " + bindEc.message());
                     }
                     Disconnect();
                     connectionCv_.notify_all();
